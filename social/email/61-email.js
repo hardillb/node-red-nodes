@@ -263,6 +263,7 @@ module.exports = function (RED) {
                 this.error(RED._("email.errors.notoken"));
             }
         }
+        this.fetch = n.fetch || 'auto'
 
         var node = this;
         node.interval_id = null;
@@ -439,14 +440,16 @@ module.exports = function (RED) {
                         authTimeout: tout
                     });
                 }
-                // Server notified about new mails during IDLE
-                imap.on('mail', function (numNew) {
-                    fetchIMAP(); // new mail -> catch immediatly
-                });
-                // Server notified about new attributes on (e.g. -> UNSEEN) during IDLE
-                imap.on('update', function () {
-                    fetchIMAP();
-                });
+                if (node.fetch === 'auto') {
+                    // Server notified about new mails during IDLE
+                    imap.on('mail', function (numNew) {
+                        fetchIMAP(); // new mail -> catch immediatly
+                    });
+                    // Server notified about new attributes on (e.g. -> UNSEEN) during IDLE
+                    imap.on('update', function () {
+                        fetchIMAP();
+                    });
+                }
                 imap.on('close', function (hadError) {
                     // var msg = 'IMAP connection closed';
                     if (hadError) {
@@ -554,7 +557,7 @@ module.exports = function (RED) {
                                 //console.log("> search - err=%j, results=%j", err, results);
                                 if (results.length === 0) {
                                     //console.log(" [X] - Nothing to fetch");
-                                    if (imap.serverSupports && imap.serverSupports('IDLE')) {
+                                    if (imap.serverSupports && imap.serverSupports('IDLE') && node.fetch === 'auto') {
                                         // IMAP IDLE
                                         node.status({ fill: "green", shape: "ring", text: RED._("email.status.fetched", { number: "0" } )});
                                         node.statusErr = false;
@@ -601,7 +604,7 @@ module.exports = function (RED) {
                                 // When we have fetched all the messages
                                 fetch.on('end', function () {
                                     var cleanup = function () {
-                                        if (imap.serverSupports && imap.serverSupports('IDLE')) {
+                                        if (imap.serverSupports && imap.serverSupports('IDLE') && node.fetch === 'auto') {
                                             // for IMAP IDLE, connection is expected to stay open
                                             node.status({ fill: "green", shape: "ring", text: RED._("email.status.fetched", { number: results.length.toString() } )});
                                             node.statusErr = false;
@@ -657,6 +660,7 @@ module.exports = function (RED) {
                 }
 
             }
+            
             imap.connect();
         } // End of checkIMAP
 
@@ -666,7 +670,9 @@ module.exports = function (RED) {
             if (node.protocol === "POP3") {
                 checkPOP3(msg, send, done);
             } else if (node.protocol === "IMAP") {
-                if (s === false && ss == false) { checkIMAP(msg, send, done); }
+                if (s === false && ss == false) {
+                    checkIMAP(msg, send, done);
+                }
             }
         }  // End of checkEmail
 
